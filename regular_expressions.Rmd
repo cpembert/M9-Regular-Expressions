@@ -1,0 +1,91 @@
+---
+title: "Regular Expressions"
+output: html_document
+---
+
+### Loading the Libraries
+```{r}
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(reshape)
+```
+
+### Loading the Data and Converting to Tibble
+```{r}
+my_data <- read_csv("https://data.cityofnewyork.us/resource/h9gi-nx95.csv")
+auto_accidents = as_tibble(my_data)
+auto_accidents
+```
+
+## Fixing On Street Address
+
+### Next, I converted the on_street_name into titlecase.
+```{r}
+auto_accidents$on_street_name = str_to_title(auto_accidents$on_street_name)
+auto_accidents
+```
+
+### Next, I separated the on_street_name into the house number and street.
+```{r}
+auto_accidents = auto_accidents %>% extract(on_street_name, c('house_number', 'street'), '(\\S+)\\s+(.*)', convert = TRUE) 
+auto_accidents
+```
+
+### Next, I created house_number_start which is the start of the house_number up to the last character.
+```{r}
+auto_accidents$house_number_start =  str_sub(auto_accidents$house_number,0,-2)
+auto_accidents
+```
+
+### Then, if the last character of the house_number ended with a number from 0-9, I replaced it with its ordinal value. 
+```{r}
+auto_accidents$house_number_end = str_replace_all(str_sub(auto_accidents$house_number,-1), c("0"="0th","1" = "1st", "2" = "2nd", 
+                                               "3" = "3rd", 
+                                               "4" = "4th", "5" = "5th", "6"="6th", 
+                                               "7" = "7th", "8" = "8th", "9" = "9th"))
+auto_accidents
+```
+
+### Next, I joined the house_number_start and house_number_end back together with no spaces in betweem as house_number
+```{r}
+auto_accidents = auto_accidents %>% 
+   unite(house_number, house_number_start, house_number_end, sep = "", remove = TRUE)
+auto_accidents
+```
+
+
+### Then, I rejoined house_number and street back together as on_street_name with one space between them
+```{r}
+auto_accidents = auto_accidents %>% 
+   unite(on_street_name, house_number, street, sep = " ", remove = TRUE)
+auto_accidents
+```
+
+### Problems:
+
+1. The method above doesn't always assign the write ordinal form. For example, 12 Avenue becomes 12nd Avenue. 
+
+2. When the number is not in the first word of the string the method above also doesn't work.
+For example, East 174 Street stays the same. 
+
+3. Lastly, there is an issue with missing values becoming "NA" or "NANA" or "NANANA" with the string joins. 
+
+## Vehicle Codes
+
+### Lastly, I found that there are 34 distinct vehicle type code #1 values. 
+```{r}
+n_distinct(auto_accidents$vehicle_type_code1)
+```
+
+### Below are their codes.  
+```{r}
+unique(auto_accidents$vehicle_type_code1)
+```
+In my opinion these codes are confusing - there are two many different categories. 
+One way to categorize them is by their passenger capacity and size (small, medium, large, extra-large). 
+
+So, two passenger -small would be a Motorcycle and two passengers medium would be a coupe, two passengers large would be a pickup truck, and two passengers extra-large would be a six+ wheeler truck. 
+
+Regex might be too complicated for this. It would be easiest to replace the values with str_replace_all and a list of the replacements, as above. 
